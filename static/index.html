@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智能报告助手</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 24px;
+    display: flex;
+    justify-content: center;
+  }
+  .container {
+    background: #fff;
+    width: 100%;
+    max-width: 900px;
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    align-self: flex-start;
+  }
+  h1 { font-size: 24px; color: #2d2d2d; }
+  .sub { color: #888; font-size: 13px; margin: 6px 0 18px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid #eee; }
+  .tab {
+    padding: 10px 22px;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    font-size: 15px;
+    color: #888;
+  }
+  .tab.active { color: #667eea; border-bottom-color: #667eea; font-weight: 600; }
+  .panel.hidden { display: none; }
+
+  .modes { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .mode {
+    padding: 8px 18px;
+    border: 1px solid #ddd;
+    background: #f7f7f7;
+    border-radius: 18px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #555;
+  }
+  .mode.active { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; border-color: transparent; }
+
+  .upload-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .upload-btn {
+    display: inline-block;
+    padding: 8px 16px;
+    background: #f0f0f0;
+    border: 1px dashed #bbb;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #555;
+  }
+  .upload-btn:hover { border-color: #667eea; color: #667eea; }
+  .hint { font-size: 13px; color: #999; }
+
+  textarea {
+    width: 100%; height: 220px; padding: 14px;
+    border: 1px solid #e0e0e0; border-radius: 10px;
+    font-size: 14px; line-height: 1.7; resize: vertical; font-family: inherit;
+  }
+  textarea:focus { outline: none; border-color: #667eea; }
+
+  .actions { display: flex; gap: 12px; margin: 16px 0; }
+  button { padding: 10px 26px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+  #run { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
+  #run:disabled { opacity: .5; cursor: not-allowed; }
+  #copy { background: #f0f0f0; color: #555; }
+  #copy:disabled { opacity: .4; cursor: not-allowed; }
+  .ghost { background: #fff; border: 1px solid #ddd; color: #888; }
+
+  #status { color: #e74c3c; font-size: 14px; min-height: 20px; margin-bottom: 10px; }
+  #output {
+    background: #fafafa; border: 1px solid #eee; border-radius: 10px;
+    padding: 16px; font-size: 14px; line-height: 1.8;
+    white-space: pre-wrap; color: #333; max-height: 400px; overflow-y: auto;
+  }
+  .hidden { display: none; }
+
+  #chat-box {
+    height: 380px; overflow-y: auto; border: 1px solid #eee;
+    border-radius: 10px; padding: 16px; background: #fafafa; margin-bottom: 12px;
+  }
+  .msg { max-width: 78%; padding: 10px 14px; border-radius: 12px; margin-bottom: 10px; font-size: 14px; line-height: 1.7; white-space: pre-wrap; }
+  .msg.user { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; margin-left: auto; }
+  .msg.assistant { background: #fff; border: 1px solid #eee; color: #333; }
+  .chat-input-row { display: flex; gap: 10px; }
+  #chat-input {
+    flex: 1; padding: 12px 14px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px;
+  }
+  #chat-input:focus { outline: none; border-color: #667eea; }
+  #send { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
+  #rag-files { font-size: 13px; color: #27ae60; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>智能报告助手</h1>
+    <p class="sub">LangChain + DeepSeek · 文本处理 + 知识库问答</p>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="process">文本处理</button>
+      <button class="tab" data-tab="rag">知识库问答</button>
+    </div>
+
+    <!-- 文本处理 -->
+    <div id="panel-process" class="panel">
+      <div class="modes">
+        <button class="mode active" data-mode="summarize">总结</button>
+        <button class="mode" data-mode="polish">润色</button>
+        <button class="mode" data-mode="expand">扩写</button>
+        <button class="mode" data-mode="proofread">校对</button>
+      </div>
+      <div class="upload-row">
+        <label class="upload-btn">上传文件<input type="file" id="file-process" accept=".txt,.md,.pdf,.docx" hidden></label>
+        <span class="hint" id="upload-hint">支持 txt / md / pdf / docx</span>
+      </div>
+      <textarea id="input" placeholder="把需要处理的文字粘贴到这里，或上传文件自动提取..."></textarea>
+      <div class="actions">
+        <button id="run">开始处理</button>
+        <button id="copy" disabled>复制结果</button>
+      </div>
+      <div id="status"></div>
+      <div id="output" class="hidden"></div>
+    </div>
+
+    <!-- 知识库问答 -->
+    <div id="panel-rag" class="panel hidden">
+      <div class="upload-row">
+        <label class="upload-btn">上传资料（可多选）<input type="file" id="file-rag" accept=".txt,.md,.pdf,.docx" multiple hidden></label>
+        <button id="reset" class="ghost">清空对话与知识库</button>
+      </div>
+      <div id="rag-files"></div>
+      <div id="chat-box"></div>
+      <div class="chat-input-row">
+        <input type="text" id="chat-input" placeholder="问关于资料的问题，回车发送...">
+        <button id="send">发送</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function streamPost(url, body, onChunk, onDone) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        let detail = '请求失败';
+        try { detail = (await res.json()).detail || detail; } catch (e) {}
+        throw new Error(detail);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split('\n\n');
+        buf = parts.pop();
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith('data:')) continue;
+          const payload = JSON.parse(line.slice(5).trim());
+          if (payload.done) { if (onDone) onDone(); }
+          else if (payload.text) { onChunk(payload.text); }
+        }
+      }
+    }
+
+    // 标签页切换
+    document.querySelectorAll('.tab').forEach(t => {
+      t.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+        t.classList.add('active');
+        document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
+        document.getElementById('panel-' + t.dataset.tab).classList.remove('hidden');
+      });
+    });
+
+    // ===== 文本处理 =====
+    const inputEl = document.getElementById('input');
+    const outputEl = document.getElementById('output');
+    const statusEl = document.getElementById('status');
+    const runBtn = document.getElementById('run');
+    const copyBtn = document.getElementById('copy');
+    let mode = 'summarize';
+
+    document.querySelectorAll('.mode').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.mode').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        mode = btn.dataset.mode;
+      });
+    });
+
+    document.getElementById('file-process').addEventListener('change', async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      document.getElementById('upload-hint').textContent = '正在解析 ' + f.name + ' ...';
+      const fd = new FormData();
+      fd.append('file', f);
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || '解析失败');
+        inputEl.value = data.text;
+        document.getElementById('upload-hint').textContent = '已导入：' + data.filename;
+      } catch (err) {
+        document.getElementById('upload-hint').textContent = '解析失败：' + err.message;
+      }
+      e.target.value = '';
+    });
+
+    runBtn.addEventListener('click', async () => {
+      const text = inputEl.value.trim();
+      if (!text) { statusEl.textContent = '请先粘贴文字或上传文件'; return; }
+      runBtn.disabled = true;
+      copyBtn.disabled = true;
+      statusEl.textContent = '处理中...';
+      outputEl.textContent = '';
+      outputEl.classList.remove('hidden');
+      try {
+        await streamPost('/api/process', { mode, text },
+          chunk => { outputEl.textContent += chunk; },
+          () => { statusEl.textContent = ''; copyBtn.disabled = false; }
+        );
+      } catch (err) {
+        statusEl.textContent = '出错：' + err.message;
+      } finally {
+        runBtn.disabled = false;
+      }
+    });
+
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(outputEl.textContent);
+        statusEl.textContent = '已复制到剪贴板';
+        statusEl.style.color = '#27ae60';
+      } catch (e) {
+        statusEl.textContent = '复制失败，请手动选择复制';
+      }
+    });
+
+    // ===== 知识库问答 =====
+    const chatBox = document.getElementById('chat-box');
+    const chatInput = document.getElementById('chat-input');
+    const ragFilesEl = document.getElementById('rag-files');
+
+    function scrollChat() { chatBox.scrollTop = chatBox.scrollHeight; }
+
+    function addMsg(role, text) {
+      const div = document.createElement('div');
+      div.className = 'msg ' + role;
+      div.textContent = text;
+      chatBox.appendChild(div);
+      scrollChat();
+      return div;
+    }
+
+    document.getElementById('file-rag').addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files);
+      if (!files.length) return;
+      const fd = new FormData();
+      files.forEach(f => fd.append('files', f));
+      ragFilesEl.style.color = '#27ae60';
+      ragFilesEl.textContent = '正在建立知识库...';
+      try {
+        const res = await fetch('/api/rag/ingest', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || '入库失败');
+        ragFilesEl.textContent = '已入库：' + data.files.join('、') + '（' + data.chunks + ' 个片段）';
+      } catch (err) {
+        ragFilesEl.style.color = '#e74c3c';
+        ragFilesEl.textContent = '入库失败：' + err.message;
+      }
+      e.target.value = '';
+    });
+
+    async function sendMessage() {
+      const q = chatInput.value.trim();
+      if (!q) return;
+      chatInput.value = '';
+      addMsg('user', q);
+      const assistantEl = addMsg('assistant', '');
+      try {
+        await streamPost('/api/chat', { question: q },
+          chunk => { assistantEl.textContent += chunk; scrollChat(); },
+          () => {}
+        );
+      } catch (err) {
+        assistantEl.textContent = '出错：' + err.message;
+      }
+    }
+
+    document.getElementById('send').addEventListener('click', sendMessage);
+    chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
+
+    document.getElementById('reset').addEventListener('click', async () => {
+      await fetch('/api/reset', { method: 'POST' });
+      chatBox.innerHTML = '';
+      ragFilesEl.textContent = '';
+    });
+
+    fetch('/api/status').then(r => r.json()).then(d => {
+      if (!d.rag_available) {
+        ragFilesEl.textContent = '提示：未配置 SILICONFLOW_API_KEY，知识库问答暂不可用';
+        ragFilesEl.style.color = '#e67e22';
+      }
+    });
+  </script>
+</body>
+</html>

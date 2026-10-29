@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+python-multipart
+langchain-deepseek
+langchain-core
+langchain-community
+langchain-text-splitters
+langchain-chroma
+langchain-openai
+pypdf
+docx2txt
+chromadb
+python-dotenv
